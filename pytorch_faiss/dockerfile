@@ -1,0 +1,31 @@
+FROM pytorch/pytorch:latest
+
+MAINTAINER Mao Bin <miscy210@163.com>
+
+RUN sed 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list > tmp && mv tmp /etc/apt/sources.list && \
+    apt-get update && apt-get install -y --no-install-recommends apt-utils swig
+
+ENV PYTHON_VERSION=3.5
+RUN conda install -y python=$PYTHON_VERSION openblas -c pytorch
+
+WORKDIR /opt
+RUN git clone --depth=1 https://github.com/facebookresearch/faiss
+WORKDIR /opt/faiss
+ENV BLASLDFLAGS /opt/conda/lib/libopenblas.so.0
+
+RUN echo "/opt/conda/lib/" >> /etc/ld.so.conf.d/libc.conf && ldconfig
+RUN sed 's/PYTHONCFLAGS=-I\/usr\/include\/python2.7\/ -I\/usr\/lib64\/python2.7/PYTHONCFLAGS=-I\/opt\/conda\/include\/python3.5m\/ -I\/opt\/conda\/envs\/pytorch-py35\/lib\/python3.5/g'  example_makefiles/makefile.inc.Linux > ./makefile.inc
+
+RUN make tests/test_blas -j $(nproc) && \
+    make -j $(nproc) && \
+    make tests/demo_sift1M -j $(nproc)
+
+RUN make py
+
+ENV PYTHONPATH "$PYTHONPATH:/opt/faiss"
+
+RUN python -c "import faiss"
+
+WORKDIE /workspace
+
+
